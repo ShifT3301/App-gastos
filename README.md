@@ -38,6 +38,7 @@ O repositório não precisa de build: `index.html`, `manifest.webmanifest`, `sw.
 
 - Gastos (data, categoria, descrição, valor) e receitas (data, descrição, valor): adicionar, editar e excluir.
 - **Detecção de gasto fútil** por palavras-chave (sem diferenciar maiúsculas/acentos). O app sugere, você confirma ou recusa — e pode marcar manualmente. As palavras-chave são editáveis em ⚙️ Configurações.
+- **Realizado × previsto**: lançamentos com data futura (ex.: salário do dia 5 do mês que vem, uma parcela agendada) aparecem como 🕒 *previsto* e não entram no saldo real até o dia chegar — aí passam a contar sozinhos. Saldos, orçamento, gráficos e o resumo contínuo mostram a projeção separada.
 - **Recorrentes** (ex.: aluguel, salário): lançados automaticamente quando um mês novo é iniciado. Alterá-los não muda meses já lançados, a menos que você use “Lançar e atualizar valores” nas Configurações.
 - **Dashboard do mês**: total recebido, total gasto, saldo (verde/vermelho), categoria que mais consumiu o orçamento e total de gastos fúteis (R$ e %).
 - **Visão contínua**: card de *saldo acumulado* (saldo inicial + receita total − gasto total até o mês exibido) e tabela *Resumo contínuo* com todos os meses em sequência e o acumulado linha a linha. O saldo inicial é definido em ⚙️ Configurações.

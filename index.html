@@ -184,8 +184,12 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-
 .budget-head h2 { margin: 0; }
 .budget-input { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 14px; color: var(--text-2); white-space: nowrap; }
 .budget-input input { width: 120px; }
-.bar { height: 12px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
-.bar > span { display: block; height: 100%; background: var(--pos); border-radius: 6px; transition: width .3s; }
+.bar { height: 12px; background: var(--surface-2); border-radius: 6px; overflow: hidden; display: flex; }
+.bar > span { display: block; height: 100%; background: var(--pos); border-radius: 6px; transition: width .3s; flex: none; }
+.bar > span.prev {
+  background: repeating-linear-gradient(45deg, var(--muted) 0 3px, transparent 3px 7px);
+  opacity: .55; border-radius: 0 6px 6px 0; margin-left: 2px;
+}
 .bar.warn > span { background: #d99a00; }
 .bar.over > span { background: var(--neg); }
 .budget-text { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--text-2); margin-top: 8px; }
@@ -236,6 +240,9 @@ input[type="text"], input[type="date"], input[type="number"], input[type="search
 .item .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
 .item .val { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .item .val.rec { color: var(--pos); }
+.item.prev .t, .item.prev .val { opacity: .6; }
+.tag.prev { background: transparent; border: 1px dashed var(--muted); color: var(--text-2); }
+.prev-note { font-size: 13px; color: var(--text-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; }
 .item .row-actions { display: flex; gap: 2px; }
 .item .row-actions button { border: 0; background: none; cursor: pointer; padding: 6px; border-radius: 6px; color: var(--muted); font-size: 15px; }
 .item .row-actions button:hover { background: var(--border); color: var(--text); }
@@ -270,6 +277,8 @@ table.cont tbody tr { cursor: pointer; }
 table.cont tbody tr:hover { background: var(--surface-2); }
 table.cont tbody tr.atual { background: var(--surface-2); font-weight: 600; }
 table.cont tbody tr.inicial { cursor: default; color: var(--text-2); }
+table.cont tbody tr.prev-row td { border-top: 0; padding-top: 0; font-size: 12px; color: var(--muted); font-style: italic; }
+table.cont tfoot tr.proj td { font-weight: 600; color: var(--text-2); font-style: italic; }
 table.cont tfoot td { font-weight: 700; background: var(--surface-2); }
 .pos-t { color: var(--pos); }
 .neg-t { color: var(--neg); }
@@ -430,7 +439,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
         <input type="text" inputmode="decimal" id="budget-input" placeholder="0,00" aria-label="Orçamento do mês em reais">
       </label>
     </div>
-    <div class="bar" id="budget-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+    <div class="bar" id="budget-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span class="real"></span><span class="prev" title="Gastos previstos"></span></div>
     <div class="budget-text"><span id="budget-used"></span><span id="budget-left"></span></div>
     <div class="alert" id="budget-alert" hidden></div>
   </section>
@@ -495,6 +504,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   <form id="form-entry" novalidate>
     <div class="dlg-body">
       <h2 id="entry-title">Novo gasto</h2>
+      <p class="prev-note" id="entry-prev-note" hidden>🕒 Data futura: este lançamento fica como <strong>previsto</strong> e só entra no saldo quando o dia chegar.</p>
       <p class="note" id="entry-rec-note" hidden>🔁 Lançado a partir de um recorrente. Alterar aqui muda só este mês.</p>
       <label class="field"><span>Descrição</span>
         <input type="text" name="descricao" autocomplete="off" required maxlength="120">
@@ -912,32 +922,52 @@ async function newFile() {
 }
 
 /* ================= Cálculos ================= */
+/*
+ * Realizado × previsto: um lançamento com data depois de hoje é "previsto" (ex.: salário do dia 5
+ * do mês que vem, parcela agendada). Ele aparece na lista e nas projeções, mas só entra nos
+ * saldos reais quando o dia chega. Não há nada salvo no arquivo: é calculado pela data.
+ */
+const hoje = () => state.hoje || todayISO();
+const isPrevisto = x => x.data > hoje();
+
 /** Receita, gasto e saldo somados de todos os meses até `key` (inclusive), partindo do saldo inicial. */
 function cumulativeStats(key) {
-  let recebido = 0, gasto = 0;
+  let recebido = 0, gasto = 0, prevRec = 0, prevGas = 0;
   for (const k of Object.keys(state.data.meses)) {
     if (k > key) continue;
-    const m = state.data.meses[k];
-    recebido += sum(m.receitas); gasto += sum(m.gastos);
+    const s = monthStats(k);
+    recebido += s.recebido; gasto += s.gasto; prevRec += s.prevRec; prevGas += s.prevGas;
   }
-  recebido = round2(recebido); gasto = round2(gasto);
   const inicial = state.data.saldoInicial || 0;
-  return { inicial, recebido, gasto, saldo: round2(inicial + recebido - gasto) };
+  recebido = round2(recebido); gasto = round2(gasto); prevRec = round2(prevRec); prevGas = round2(prevGas);
+  return {
+    inicial, recebido, gasto, prevRec, prevGas,
+    saldo: round2(inicial + recebido - gasto),
+    saldoPrevisto: round2(inicial + recebido + prevRec - gasto - prevGas),
+  };
 }
 
 function monthStats(key) {
   const m = state.data.meses[key] || { orcamento: 0, receitas: [], gastos: [] };
-  const recebido = sum(m.receitas);
-  const gasto = sum(m.gastos);
-  const porCat = {};
-  for (const g of m.gastos) porCat[g.categoria] = round2((porCat[g.categoria] || 0) + g.valor);
+  const gReal = m.gastos.filter(g => !isPrevisto(g)), gPrev = m.gastos.filter(isPrevisto);
+  const rReal = m.receitas.filter(r => !isPrevisto(r)), rPrev = m.receitas.filter(isPrevisto);
+  const recebido = sum(rReal), gasto = sum(gReal);
+  const prevRec = sum(rPrev), prevGas = sum(gPrev);
+  const porCat = {}, porCatPrev = {};
+  for (const g of gReal) porCat[g.categoria] = round2((porCat[g.categoria] || 0) + g.valor);
+  for (const g of gPrev) porCatPrev[g.categoria] = round2((porCatPrev[g.categoria] || 0) + g.valor);
   const cats = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
-  const futil = sum(m.gastos.filter(g => g.futil));
-  return { m, recebido, gasto, saldo: round2(recebido - gasto), cats, futil };
+  const futil = sum(gReal.filter(g => g.futil));
+  return {
+    m, recebido, gasto, saldo: round2(recebido - gasto), cats, porCat, porCatPrev, futil,
+    prevRec, prevGas, temPrevisto: gPrev.length + rPrev.length > 0,
+    saldoTotal: round2(recebido + prevRec - gasto - prevGas),
+  };
 }
 
 /* ================= Renderização ================= */
 function render() {
+  state.hoje = todayISO();
   renderHeader();
   renderBanners();
   renderMonth();
@@ -988,23 +1018,28 @@ function renderMonth() {
 
   const s = monthStats(key);
   $('#kpi-rec').textContent = fmt(s.recebido);
-  $('#kpi-rec-sub').textContent = `${s.m.receitas.length} receita(s)`;
+  const nRecReal = s.m.receitas.filter(r => !isPrevisto(r)).length;
+  const nGasReal = s.m.gastos.filter(g => !isPrevisto(g)).length;
+  $('#kpi-rec-sub').textContent = `${nRecReal} receita(s)` + (s.prevRec ? ` · 🕒 +${fmt(s.prevRec)} previsto` : '');
   $('#kpi-gas').textContent = fmt(s.gasto);
-  $('#kpi-gas-sub').textContent = `${s.m.gastos.length} gasto(s)`;
+  $('#kpi-gas-sub').textContent = `${nGasReal} gasto(s)` + (s.prevGas ? ` · 🕒 +${fmt(s.prevGas)} previsto` : '');
 
   const sc = $('#kpi-saldo-card');
   sc.classList.toggle('pos', s.saldo > 0);
   sc.classList.toggle('neg', s.saldo < 0);
   $('#kpi-saldo').textContent = (s.saldo > 0 ? '+' : '') + fmt(s.saldo);
-  $('#kpi-saldo-sub').textContent = s.saldo > 0 ? '▲ Sobrou dinheiro' : s.saldo < 0 ? '▼ Gastou mais do que recebeu' : 'Empatado';
+  $('#kpi-saldo-sub').textContent = s.temPrevisto
+    ? `🕒 Previsto no fim do mês: ${(s.saldoTotal > 0 ? '+' : '') + fmt(s.saldoTotal)}`
+    : s.saldo > 0 ? '▲ Sobrou dinheiro' : s.saldo < 0 ? '▼ Gastou mais do que recebeu' : 'Empatado';
 
   const c = cumulativeStats(key);
   const ac = $('#kpi-acum');
   ac.textContent = fmt(c.saldo);
   ac.style.color = c.saldo < 0 ? 'var(--neg)' : '';
   $('#kpi-acum-sub').textContent = `Receita total ${fmt(c.recebido)} · Gasto total ${fmt(c.gasto)}` +
-    (c.inicial ? ` · Inicial ${fmt(c.inicial)}` : '');
-  $('#kpi-acum-card').title = `Saldo inicial + tudo o que entrou − tudo o que saiu até ${monthLabel(key)}`;
+    (c.inicial ? ` · Inicial ${fmt(c.inicial)}` : '') +
+    (c.saldoPrevisto !== c.saldo ? ` · 🕒 Previsto até o fim de ${monthName(key).toLowerCase()}: ${fmt(c.saldoPrevisto)}` : '');
+  $('#kpi-acum-card').title = `Saldo inicial + tudo o que já entrou − tudo o que já saiu (até hoje). Lançamentos com data futura contam só na previsão.`;
 
   if (s.cats.length) {
     const [nome, val] = s.cats[0];
@@ -1015,7 +1050,7 @@ function renderMonth() {
       : `${fmt(val)} · ${fmtPct(val / s.gasto)} dos gastos`;
   } else {
     $('#kpi-top').textContent = '—'; $('#kpi-top').title = '';
-    $('#kpi-top-sub').textContent = 'Nenhum gasto ainda';
+    $('#kpi-top-sub').textContent = s.prevGas ? 'Só há gastos previstos' : 'Nenhum gasto ainda';
   }
 
   $('#kpi-futil').textContent = fmt(s.futil);
@@ -1026,23 +1061,32 @@ function renderMonth() {
   if (document.activeElement !== inp) inp.value = valorInput(s.m.orcamento);
   const bar = $('#budget-bar'), alertEl = $('#budget-alert');
   const orc = s.m.orcamento;
+  const [realEl, prevEl] = bar.children;
   if (orc > 0) {
     const p = s.gasto / orc;
-    bar.firstElementChild.style.width = Math.min(100, p * 100) + '%';
+    const comPrev = s.gasto + s.prevGas;
+    const pReal = Math.min(100, p * 100);
+    realEl.style.width = pReal + '%';
+    prevEl.style.width = Math.max(0, Math.min(100, (comPrev / orc) * 100) - pReal) + '%';
     bar.setAttribute('aria-valuenow', Math.round(p * 100));
     bar.classList.toggle('warn', p >= 0.8 && p <= 1);
     bar.classList.toggle('over', p > 1);
-    $('#budget-used').textContent = `${fmt(s.gasto)} de ${fmt(orc)} (${fmtPct(p)})`;
-    $('#budget-left').textContent = p <= 1 ? `Restam ${fmt(orc - s.gasto)}` : '';
+    $('#budget-used').textContent = `${fmt(s.gasto)} de ${fmt(orc)} (${fmtPct(p)})` + (s.prevGas ? ` · 🕒 +${fmt(s.prevGas)} previsto` : '');
+    $('#budget-left').textContent = comPrev <= orc
+      ? `Restam ${fmt(orc - comPrev)}${s.prevGas ? ' contando os previstos' : ''}`
+      : p <= 1 ? `Restam ${fmt(orc - s.gasto)} hoje` : '';
     if (p > 1) {
       alertEl.hidden = false; alertEl.className = 'alert';
       alertEl.textContent = `⚠️ Orçamento ultrapassado em ${fmt(s.gasto - orc)}.`;
+    } else if (comPrev > orc) {
+      alertEl.hidden = false; alertEl.className = 'alert warn';
+      alertEl.textContent = `⚠️ Com os gastos previstos, o orçamento vai estourar em ${fmt(comPrev - orc)}.`;
     } else if (p >= 0.8) {
       alertEl.hidden = false; alertEl.className = 'alert warn';
       alertEl.textContent = `⚠️ Atenção: você já usou ${fmtPct(p)} do orçamento.`;
     } else alertEl.hidden = true;
   } else {
-    bar.firstElementChild.style.width = '0%';
+    realEl.style.width = '0%'; prevEl.style.width = '0%';
     bar.classList.remove('warn', 'over');
     bar.removeAttribute('aria-valuenow');
     $('#budget-used').textContent = 'Defina um limite para acompanhar quanto já foi usado.';
@@ -1081,24 +1125,30 @@ function renderCharts() {
   };
 
   // Gastos por categoria: barras horizontais (uma cor só, ordenadas)
-  if (!s.cats.length) showEmpty('cat', 'Sem gastos neste mês.');
+  const catNames = [...new Set([...Object.keys(s.porCat), ...Object.keys(s.porCatPrev)])]
+    .sort((a, b) => ((s.porCat[b] || 0) + (s.porCatPrev[b] || 0)) - ((s.porCat[a] || 0) + (s.porCatPrev[a] || 0)));
+  if (!catNames.length) showEmpty('cat', 'Sem gastos neste mês.');
   else {
     showEmpty('cat', null);
-    const labels = s.cats.map(c => c[0]);
-    const values = s.cats.map(c => c[1]);
-    const total = s.gasto;
+    const cor = cssVar('--series-1');
+    const total = s.gasto + s.prevGas;
+    const datasets = [{ label: 'Realizado', data: catNames.map(c => s.porCat[c] || 0), backgroundColor: cor, borderRadius: 4, borderSkipped: false, maxBarThickness: 22 }];
+    if (s.prevGas) {
+      datasets.push({ label: '🕒 Previsto', data: catNames.map(c => s.porCatPrev[c] || 0), backgroundColor: cor + '55', borderColor: cor,
+        borderWidth: { top: 0, bottom: 0, left: 0, right: 0 }, borderRadius: 4, borderSkipped: false, maxBarThickness: 22 });
+    }
     const cfg = {
       type: 'bar',
-      data: { labels, datasets: [{ label: 'Gasto', data: values, backgroundColor: cssVar('--series-1'), borderRadius: 4, borderSkipped: 'start', maxBarThickness: 22 }] },
+      data: { labels: catNames, datasets },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
         plugins: {
-          legend: { display: false },
-          tooltip: { ...tooltip, callbacks: { label: c => ` ${fmt(c.raw)} · ${fmtPct(c.raw / total)} dos gastos` } },
+          legend: { display: datasets.length > 1, position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } },
+          tooltip: { ...tooltip, filter: c => c.raw > 0, callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.raw)} · ${fmtPct(c.raw / total)} dos gastos` } },
         },
         scales: {
-          x: { beginAtZero: true, grid: { color: grid }, border: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 12, callback: v => brl.format(v).replace(/,00$/, '') } },
-          y: { grid: { display: false }, border: { display: false } },
+          x: { stacked: true, beginAtZero: true, grid: { color: grid }, border: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 12, callback: v => brl.format(v).replace(/,00$/, '') } },
+          y: { stacked: true, grid: { display: false }, border: { display: false } },
         },
       },
     };
@@ -1114,10 +1164,20 @@ function renderCharts() {
     showEmpty('hist', null);
     const first = keys.indexOf(used[0]);
     const ks = keys.slice(first);
-    const st = ks.map(k => (state.data.meses[k] ? { ...monthStats(k), acumulado: cumulativeStats(k).saldo } : null));
+    // Até o mês atual: só o realizado. Meses futuros: projeção com os previstos (linha tracejada).
+    const mesAtual = todayKey();
+    const futuro = ks.map(k => k > mesAtual);
+    const st = ks.map((k, i) => {
+      if (!state.data.meses[k]) return null;
+      const m = monthStats(k), c = cumulativeStats(k);
+      return futuro[i]
+        ? { recebido: m.recebido + m.prevRec, gasto: m.gasto + m.prevGas, saldo: m.saldoTotal, acumulado: c.saldoPrevisto }
+        : { recebido: m.recebido, gasto: m.gasto, saldo: m.saldo, acumulado: c.saldo };
+    });
     const ds = (label, color, f) => ({
-      label, data: st.map(x => (x ? f(x) : null)), borderColor: color, backgroundColor: color,
+      label, data: st.map(x => (x ? round2(f(x)) : null)), borderColor: color, backgroundColor: color,
       borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, pointBorderColor: surface, pointBorderWidth: 2, tension: 0.25, spanGaps: true,
+      segment: { borderDash: c => (futuro[c.p1DataIndex] ? [5, 4] : undefined) },
     });
     const cfg = {
       type: 'line',
@@ -1135,7 +1195,10 @@ function renderCharts() {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8 } },
-          tooltip: { ...tooltip, callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } },
+          tooltip: { ...tooltip, callbacks: {
+            title: items => items.length ? items[0].label + (futuro[items[0].dataIndex] ? ' (previsto)' : '') : '',
+            label: c => ` ${c.dataset.label}: ${fmt(c.raw)}`,
+          } },
         },
         scales: {
           x: { grid: { display: false }, border: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 8 } },
@@ -1164,17 +1227,27 @@ function renderLedger() {
   if (!keys.length) { t.innerHTML = '<tbody><tr class="inicial"><td colspan="5">Nenhum mês lançado ainda.</td></tr></tbody>'; return; }
   const cls = v => (v < 0 ? 'neg-t' : v > 0 ? 'pos-t' : '');
   const sinal = v => (v > 0 ? '+' : '') + fmt(v);
-  let acum = inicial, totR = 0, totG = 0;
+  // Linhas principais: só o realizado. Abaixo de cada mês com previstos, uma linha "🕒 previsto"
+  // com a projeção do acumulado se tudo o que está agendado acontecer.
+  let acum = inicial, acumProj = inicial, totR = 0, totG = 0, totPR = 0, totPG = 0;
   const rows = keys.map(k => {
     const s = monthStats(k);
-    acum = round2(acum + s.saldo); totR += s.recebido; totG += s.gasto;
+    acum = round2(acum + s.saldo); acumProj = round2(acumProj + s.saldoTotal);
+    totR += s.recebido; totG += s.gasto; totPR += s.prevRec; totPG += s.prevGas;
+    const saldoPrev = round2(s.prevRec - s.prevGas);
     return `<tr data-key="${k}" class="${k === state.key ? 'atual' : ''}" tabindex="0">
       <td>${escapeHtml(monthLabel(k))}</td><td>${fmt(s.recebido)}</td><td>${fmt(s.gasto)}</td>
-      <td class="${cls(s.saldo)}">${sinal(s.saldo)}</td><td class="${cls(acum)}">${fmt(acum)}</td></tr>`;
+      <td class="${cls(s.saldo)}">${sinal(s.saldo)}</td><td class="${cls(acum)}">${fmt(acum)}</td></tr>` +
+      (s.temPrevisto ? `<tr data-key="${k}" class="prev-row" title="Lançamentos com data futura">
+      <td>↳ 🕒 previsto</td><td>${s.prevRec ? '+' + fmt(s.prevRec) : '—'}</td><td>${s.prevGas ? fmt(s.prevGas) : '—'}</td>
+      <td>${sinal(saldoPrev)}</td><td>→ ${fmt(acumProj)}</td></tr>` : '');
   });
+  const temPrev = totPR || totPG;
   t.innerHTML = `<thead><tr><th>Mês</th><th>Receitas</th><th>Gastos</th><th>Saldo do mês</th><th>Acumulado</th></tr></thead>
     <tbody>${inicial ? `<tr class="inicial"><td>Saldo inicial</td><td></td><td></td><td></td><td class="${cls(inicial)}">${fmt(inicial)}</td></tr>` : ''}${rows.join('')}</tbody>
-    <tfoot><tr><td>Total</td><td>${fmt(totR)}</td><td>${fmt(totG)}</td><td class="${cls(totR - totG)}">${sinal(round2(totR - totG))}</td><td class="${cls(acum)}">${fmt(acum)}</td></tr></tfoot>`;
+    <tfoot><tr><td>Total até hoje</td><td>${fmt(totR)}</td><td>${fmt(totG)}</td><td class="${cls(totR - totG)}">${sinal(round2(totR - totG))}</td><td class="${cls(acum)}">${fmt(acum)}</td></tr>` +
+    (temPrev ? `<tr class="proj"><td>🕒 Com os previstos</td><td>${fmt(totR + totPR)}</td><td>${fmt(totG + totPG)}</td>
+      <td>${sinal(round2(totR + totPR - totG - totPG))}</td><td class="${cls(acumProj)}">${fmt(acumProj)}</td></tr>` : '') + `</tfoot>`;
 }
 
 function fmtDia(d) { const [, m, dd] = d.split('-'); return `${dd}/${m}`; }
@@ -1207,7 +1280,11 @@ function renderList() {
   items = items.slice().sort((a, b) => b.data.localeCompare(a.data));
 
   const filtered = busca || (isG && (f.categoria || f.futil));
-  $('#f-total').textContent = items.length ? `${filtered ? 'Filtrado: ' : 'Total: '}${fmt(sum(items))}` : '';
+  const itemsPrev = items.filter(isPrevisto);
+  $('#f-total').textContent = !items.length ? ''
+    : itemsPrev.length
+      ? `${filtered ? 'Filtrado: ' : ''}${fmt(sum(items.filter(x => !isPrevisto(x))))} · 🕒 ${fmt(sum(itemsPrev))} previsto`
+      : `${filtered ? 'Filtrado: ' : 'Total: '}${fmt(sum(items))}`;
 
   const list = $('#list');
   if (!items.length) {
@@ -1215,13 +1292,14 @@ function renderList() {
     return;
   }
   list.innerHTML = items.map(x => `
-    <li class="item" data-id="${escapeHtml(x.id)}" tabindex="0" aria-label="Editar ${escapeHtml(x.descricao)}">
+    <li class="item${isPrevisto(x) ? ' prev' : ''}" data-id="${escapeHtml(x.id)}" tabindex="0" aria-label="Editar ${escapeHtml(x.descricao)}">
       <span class="date">${fmtDia(x.data)}</span>
       <div class="desc">
         <div class="t">${escapeHtml(x.descricao) || '<em>(sem descrição)</em>'}</div>
         <div class="tags">
           ${isG ? `<span class="tag">${escapeHtml(x.categoria)}</span>` : ''}
           ${isG && x.futil ? `<span class="tag futil">🎲 Fútil${x.tipoFutilidade ? ' · ' + escapeHtml(x.tipoFutilidade) : ''}</span>` : ''}
+          ${isPrevisto(x) ? '<span class="tag prev" title="Data futura: ainda não conta no saldo">🕒 Previsto</span>' : ''}
           ${x.origemRecorrente ? '<span class="tag" title="Lançado automaticamente">🔁 Recorrente</span>' : ''}
         </div>
       </div>
@@ -1273,8 +1351,14 @@ function openEntry(kind, id = null) {
     syncFutil();
   }
   $('#sugestao').hidden = true;
+  syncPrevNote();
   $('#dlg-entry').showModal();
   form.descricao.focus();
+}
+
+function syncPrevNote() {
+  const d = $('#form-entry').data.value;
+  $('#entry-prev-note').hidden = !(isValidDate(d) && d > todayISO());
 }
 
 function syncFutil() {
@@ -1606,6 +1690,8 @@ function bind() {
   const form = $('#form-entry');
   form.addEventListener('submit', submitEntry);
   form.descricao.addEventListener('input', updateSugestao);
+  form.data.addEventListener('input', syncPrevNote);
+  form.data.addEventListener('change', syncPrevNote);
   form.futil.addEventListener('change', () => {
     if (form.futil.checked && !form.tipoFutilidade.value) {
       const m = detectFutil(form.descricao.value);
@@ -1642,6 +1728,10 @@ function bind() {
   window.addEventListener('beforeunload', e => {
     if (HAS_FS && state.dirty) { e.preventDefault(); e.returnValue = ''; }
   });
+  // Se o app ficar aberto de um dia para o outro, atualiza o que já deixou de ser previsto.
+  const checaDia = () => { if (state.hoje && state.hoje !== todayISO()) render(); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checaDia(); });
+  setInterval(checaDia, 60 * 1000);
   if (window.matchMedia) {
     const mq = matchMedia('(prefers-color-scheme: dark)');
     const onMq = () => { if (!document.documentElement.dataset.theme) renderCharts(); };
