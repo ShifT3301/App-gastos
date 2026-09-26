@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Controle de Gastos</title>
 <meta name="description" content="Controle de gastos mensais que roda 100% no navegador, salvando em um arquivo JSON local.">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Gastos">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💸</text></svg>">
 <script id="chartjs" async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
@@ -243,6 +251,7 @@ input[type="text"], input[type="date"], input[type="number"], input[type="search
   .item .row-actions { display: none; }
   .month-nav h1 { font-size: 19px; }
   .actions .btn .lbl { display: none; }
+  .actions #btn-save .lbl { display: inline; }
   .file-status .name { max-width: 140px; }
   .hide-sm { display: none; }
   .tab { padding-left: 8px; padding-right: 8px; }
@@ -273,6 +282,10 @@ table.cont tfoot td { font-weight: 700; background: var(--surface-2); }
   table.cont th, table.cont td { padding-left: 6px; padding-right: 6px; }
   table.cont th:first-child, table.cont td:first-child { white-space: normal; padding-left: 12px; }
   table.cont th:last-child, table.cont td:last-child { padding-right: 12px; }
+}
+
+@media (pointer: coarse) {
+  input[type="text"], input[type="date"], input[type="number"], input[type="search"], select { font-size: 16px; }
 }
 
 /* ---------- Footer ---------- */
@@ -465,12 +478,13 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
     <details>
       <summary>Sobre e limitações</summary>
       <ul>
-        <li><strong>Seus dados ficam só no seu computador.</strong> Não há servidor: tudo é lido e gravado num arquivo <code>.json</code> que você escolhe.</li>
-        <li><strong>Salvar direto no arquivo</strong> só funciona no Chrome e no Edge (File System Access API). No Firefox e no Safari, use <em>Abrir</em> para importar e <em>Salvar</em> para baixar o JSON atualizado — depois substitua o arquivo antigo por ele.</li>
-        <li><strong>Sem sincronização automática</strong> entre dispositivos: o arquivo é a única fonte de verdade. Para usar em outro aparelho, mova o arquivo (por exemplo, pelo Google Drive).</li>
-        <li><strong>Abrindo o .html direto do disco</strong> (<code>file://</code>), alguns navegadores restringem permissões. Se algo não funcionar, rode um servidor local simples na pasta do app, por exemplo <code>python3 -m http.server</code>, e acesse <code>http://localhost:8000</code>.</li>
+        <li><strong>Seus dados ficam só com você.</strong> Não há servidor: tudo fica guardado neste navegador e, se você quiser, num arquivo <code>.json</code> que você escolhe.</li>
+        <li><strong>No Chrome e no Edge (computador)</strong>, <em>Salvar</em> grava direto no arquivo aberto (File System Access API).</li>
+        <li><strong>No iPhone, Android, Firefox e Safari</strong>, os dados ficam salvos automaticamente no navegador. Use <em>Exportar</em> de vez em quando para guardar um backup (no iPhone, escolha “Salvar em Arquivos”) e <em>Importar</em> para trazer um arquivo. Se você apagar os dados de navegação, os dados do app também são apagados — por isso o backup é importante.</li>
+        <li><strong>No iPhone</strong>, adicione o app à Tela de Início (Safari → Compartilhar → Adicionar à Tela de Início). Assim ele abre como um app, funciona sem internet e o iOS não apaga os dados por falta de uso.</li>
+        <li><strong>Sem sincronização automática</strong> entre aparelhos: cada aparelho guarda os seus dados. Para passar de um para outro, exporte num e importe no outro (por exemplo, pelo Google Drive ou AirDrop).</li>
+        <li><strong>Abrindo o .html direto do disco</strong> (<code>file://</code>), alguns navegadores restringem permissões, e no iPhone isso não funciona. Use o endereço online do app ou, no computador, rode <code>python3 -m http.server</code> na pasta e acesse <code>http://localhost:8000</code>.</li>
         <li><strong>A detecção de “gasto fútil”</strong> é uma busca simples por palavras-chave, não inteligência artificial. Pode errar (ex.: “bar” também aparece em “barbeiro”). Você sempre pode aceitar, recusar ou corrigir manualmente, e editar as palavras-chave em ⚙️ Configurações.</li>
-        <li>Como segurança extra, alterações ainda não salvas ficam guardadas como rascunho neste navegador até você salvar.</li>
       </ul>
     </details>
   </footer>
@@ -537,10 +551,13 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-const LS_DRAFT = 'app-gastos:rascunho';
+const LS_DATA = 'app-gastos:dados';
+const LS_DRAFT = 'app-gastos:rascunho'; // versão antiga, migrada no início
 const LS_THEME = 'app-gastos:tema';
 const LS_HIDE_NOTICE = 'app-gastos:aviso-modo-oculto';
 const HAS_FS = typeof window.showOpenFilePicker === 'function' && typeof window.showSaveFilePicker === 'function';
+const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 const FILE_TYPES = [{ description: 'Arquivo de gastos (JSON)', accept: { 'application/json': ['.json'] } }];
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -723,20 +740,45 @@ const state = {
   tab: 'gastos',
   filtros: { busca: '', categoria: '', futil: '' },
   charts: {},
-  draftBanner: false,
   chartFailed: false,
 };
 
+/** Guarda tudo neste navegador. Sem acesso direto a arquivos (iPhone, Firefox, Safari), é o salvamento principal. */
+function persist() {
+  lsSet(LS_DATA, JSON.stringify({ data: state.data, fileName: state.fileName, dirty: state.dirty, ts: Date.now() }));
+}
 function markDirty() {
   state.dirty = true;
-  lsSet(LS_DRAFT, JSON.stringify({ data: state.data, fileName: state.fileName, ts: Date.now() }));
+  persist();
   render();
 }
 function markClean() {
   state.dirty = false;
-  lsDel(LS_DRAFT);
+  persist();
   renderHeader();
 }
+function hasEntries() {
+  return state.data.recorrentes.gastos.length + state.data.recorrentes.receitas.length > 0 ||
+    Object.values(state.data.meses).some(m => m.gastos.length || m.receitas.length);
+}
+
+/* Guarda o "atalho" para o arquivo (Chrome/Edge) no IndexedDB, para salvar direto mesmo depois de fechar o app. */
+function idb(mode, fn) {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) return resolve(null);
+    const req = indexedDB.open('app-gastos', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const tx = req.result.transaction('kv', mode);
+      const r = fn(tx.objectStore('kv'));
+      tx.oncomplete = () => resolve(r && r.result);
+      tx.onerror = () => reject(tx.error);
+    };
+  }).catch(() => null);
+}
+const saveHandle = h => (h ? idb('readwrite', st => st.put(h, 'handle')) : idb('readwrite', st => st.delete('handle')));
+const loadHandle = () => idb('readonly', st => st.get('handle'));
 
 /* ================= Arquivo ================= */
 function loadData(raw, name, handle) {
@@ -745,7 +787,8 @@ function loadData(raw, name, handle) {
   state.fileHandle = handle || null;
   state.key = todayKey();
   state.dirty = false;
-  lsDel(LS_DRAFT);
+  persist();
+  if (HAS_FS) saveHandle(handle || null);
   if (!state.data.meses[state.key]) {
     ensureMonth(state.key);
     const n = state.data.recorrentes.gastos.length + state.data.recorrentes.receitas.length;
@@ -754,8 +797,11 @@ function loadData(raw, name, handle) {
   } else render();
 }
 
-async function confirmDiscard() {
-  return !state.dirty || confirm('Há alterações não salvas. Deseja descartá-las?');
+async function confirmDiscard(acao) {
+  if (HAS_FS) return !state.dirty || confirm('Há alterações que ainda não foram salvas no arquivo. Deseja descartá-las?');
+  return !hasEntries() || confirm(acao === 'novo'
+    ? 'Isso apaga todos os dados guardados neste aparelho. Exporte um backup antes, se quiser. Continuar?'
+    : 'Importar um arquivo substitui os dados guardados neste aparelho pelos do arquivo. Continuar?');
 }
 
 async function openFile() {
@@ -778,7 +824,7 @@ async function onFileInput(ev) {
   if (!file) return;
   try {
     loadData(JSON.parse(await file.text()), file.name, null);
-    toast(`Arquivo “${file.name}” importado. Ao salvar, uma cópia atualizada será baixada.`);
+    toast(`Arquivo “${file.name}” importado. Os dados agora ficam salvos neste aparelho.`);
   } catch (e) {
     console.error(e);
     alert('Não foi possível abrir o arquivo: ' + (e instanceof SyntaxError ? 'o conteúdo não é um JSON válido.' : e.message));
@@ -818,12 +864,10 @@ async function saveFile() {
       markClean();
       toast(`Salvo em “${handle.name}”.`);
     } else {
-      const name = state.fileName || defaultFileName();
-      download(name, serialize());
-      state.fileName = name;
-      markClean();
-      toast(`“${name}” baixado. Substitua o arquivo antigo por este.`);
+      await exportBackup();
+      return;
     }
+    saveHandle(state.fileHandle);
   } catch (e) {
     if (e.name === 'AbortError') return;
     console.error(e);
@@ -831,21 +875,40 @@ async function saveFile() {
   }
 }
 
-function exportBackup() {
-  download(`gastos-backup-${todayISO()}.json`, serialize());
-  toast('Backup baixado.');
+/** Exporta uma cópia. No celular abre o menu Compartilhar (→ “Salvar em Arquivos”); no computador, baixa. */
+async function exportBackup() {
+  const name = `gastos-${todayISO()}.json`;
+  const text = serialize();
+  if (navigator.maxTouchPoints > 0 && typeof navigator.canShare === 'function' && typeof File === 'function') {
+    const file = new File([text], name, { type: 'application/json' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Backup dos gastos' });
+        if (!HAS_FS) markClean();
+        toast('Backup exportado.');
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        console.warn('Compartilhar falhou, baixando o arquivo.', e);
+      }
+    }
+  }
+  download(name, text);
+  if (!HAS_FS) markClean();
+  toast(`Backup “${name}” baixado.`);
 }
 
 async function newFile() {
-  if (!(await confirmDiscard())) return;
+  if (!(await confirmDiscard('novo'))) return;
   state.data = emptyData();
   state.fileHandle = null; state.fileName = null;
   state.key = todayKey();
   ensureMonth(state.key);
   state.dirty = false;
-  lsDel(LS_DRAFT);
+  persist();
+  if (HAS_FS) saveHandle(null);
   render();
-  toast('Novo controle criado. Salve para escolher onde guardar o arquivo.');
+  toast(HAS_FS ? 'Novo controle criado. Salve para escolher onde guardar o arquivo.' : 'Novo controle criado.');
 }
 
 /* ================= Cálculos ================= */
@@ -884,22 +947,28 @@ function render() {
 }
 
 function renderHeader() {
-  $('#file-name').textContent = (state.fileName || 'Novo (sem arquivo)') + (state.dirty ? ' • não salvo' : '');
-  $('#dirty-dot').classList.toggle('dirty', state.dirty);
-  $('#dirty-dot').title = state.dirty ? 'Alterações não salvas' : 'Tudo salvo';
-  document.title = (state.dirty ? '• ' : '') + 'Controle de Gastos';
+  if (HAS_FS) {
+    $('#file-name').textContent = (state.fileName || 'Novo (sem arquivo)') + (state.dirty ? ' • não salvo' : '');
+    $('#dirty-dot').classList.toggle('dirty', state.dirty);
+    $('#dirty-dot').title = state.dirty ? 'Alterações ainda não salvas no arquivo' : 'Tudo salvo';
+    document.title = (state.dirty ? '• ' : '') + 'Controle de Gastos';
+  } else {
+    // Sem acesso direto a arquivos: tudo já fica salvo neste aparelho.
+    $('#file-name').textContent = 'Salvo neste aparelho';
+    $('#dirty-dot').classList.remove('dirty');
+    $('#dirty-dot').title = state.dirty ? 'Salvo neste aparelho (há mudanças desde o último backup)' : 'Salvo neste aparelho';
+  }
 }
 
 function renderBanners() {
   const out = [];
-  if (state.draftBanner) {
-    out.push(`<div class="banner warn"><span class="msg">📝 Encontramos alterações não salvas da última vez que você usou o app neste navegador.</span>
-      <span class="banner-actions"><button class="btn small primary" data-act="restore">Restaurar</button><button class="btn small" data-act="discard">Descartar</button></span></div>`);
-  }
   if (!HAS_FS && lsGet(LS_HIDE_NOTICE) !== '1') {
     const fileProto = location.protocol === 'file:';
-    out.push(`<div class="banner"><span class="msg">ℹ️ <strong>Modo importar/exportar.</strong> Este navegador não permite gravar direto no arquivo (isso só funciona no Chrome/Edge).
-      Use <em>Abrir</em> para importar seu <code>.json</code> e <em>Salvar</em> para baixar a versão atualizada — depois substitua o arquivo antigo.
+    const dicaIos = IS_IOS && !IS_STANDALONE
+      ? '<br>📱 <strong>Dica:</strong> no Safari, toque em <em>Compartilhar</em> → <em>Adicionar à Tela de Início</em> para usar como um app (e funcionar sem internet).' : '';
+    out.push(`<div class="banner"><span class="msg">ℹ️ <strong>Seus dados ficam salvos automaticamente neste aparelho.</strong>
+      De vez em quando, toque em <em>Exportar</em> para guardar uma cópia (backup) — por exemplo em Arquivos ou no Google Drive. Para levar os dados a outro aparelho, use <em>Importar</em> lá.
+      ${dicaIos}
       ${fileProto ? '<br>Se estiver no Chrome/Edge e ainda vê este aviso, rode o app por um servidor local: <code>python3 -m http.server</code> na pasta do app e acesse <code>http://localhost:8000</code>.' : ''}</span>
       <span class="banner-actions"><button class="btn small ghost" data-act="hide-notice" aria-label="Fechar aviso">✕</button></span></div>`);
   }
@@ -1563,8 +1632,6 @@ function bind() {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     if (b.dataset.act === 'hide-notice') lsSet(LS_HIDE_NOTICE, '1');
-    if (b.dataset.act === 'restore') restoreDraft();
-    if (b.dataset.act === 'discard') { lsDel(LS_DRAFT); state.draftBanner = false; }
     renderBanners();
   });
 
@@ -1573,7 +1640,7 @@ function bind() {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveFile(); }
   });
   window.addEventListener('beforeunload', e => {
-    if (state.dirty) { e.preventDefault(); e.returnValue = ''; }
+    if (HAS_FS && state.dirty) { e.preventDefault(); e.returnValue = ''; }
   });
   if (window.matchMedia) {
     const mq = matchMedia('(prefers-color-scheme: dark)');
@@ -1582,33 +1649,51 @@ function bind() {
   }
 }
 
-function restoreDraft() {
+/* ================= Início ================= */
+function restoreSaved() {
+  let saved = null;
+  try { saved = JSON.parse(lsGet(LS_DATA) || lsGet(LS_DRAFT) || 'null'); } catch { saved = null; }
+  if (!saved || !saved.data) return;
   try {
-    const draft = JSON.parse(lsGet(LS_DRAFT));
-    state.data = normalize(draft.data);
-    state.fileName = draft.fileName || null;
-    state.fileHandle = null; // o acesso ao arquivo precisa ser concedido de novo
-    state.draftBanner = false;
-    state.key = todayKey();
-    state.dirty = true;
-    render();
-    toast(HAS_FS && state.fileName
-      ? `Rascunho restaurado. Ao salvar, escolha de novo o arquivo “${state.fileName}”.`
-      : 'Rascunho restaurado. Salve para não perder as alterações.');
+    state.data = normalize(saved.data);
+    state.fileName = saved.fileName || null;
+    state.dirty = saved.dirty !== undefined ? !!saved.dirty : true;
   } catch (e) {
-    console.error(e);
-    lsDel(LS_DRAFT); state.draftBanner = false;
-    alert('Não foi possível restaurar o rascunho.');
+    console.error('Dados salvos inválidos', e);
+    state.data = emptyData();
   }
+  lsDel(LS_DRAFT);
 }
 
-/* ================= Início ================= */
+function setupModeUi() {
+  if (HAS_FS) return;
+  // Sem gravação direta em arquivo: "Abrir" importa, "Salvar" exporta um backup.
+  $('#btn-open .lbl').textContent = 'Importar';
+  $('#btn-open').title = 'Importar um arquivo .json (substitui os dados deste aparelho)';
+  $('#btn-save .lbl').textContent = 'Exportar';
+  $('#btn-save').title = 'Exportar uma cópia (backup)';
+  $('#btn-export').hidden = true;
+}
+
 (function init() {
   applyTheme(lsGet(LS_THEME));
-  ensureMonth(state.key);
-  state.draftBanner = !!lsGet(LS_DRAFT);
+  restoreSaved();
+  if (!state.data.meses[state.key]) {
+    ensureMonth(state.key);
+    if (hasEntries()) { state.dirty = true; persist(); }
+  }
+  setupModeUi();
   bind();
   render();
+  if (HAS_FS && state.fileName) {
+    loadHandle().then(h => { if (h && h.name === state.fileName) state.fileHandle = h; });
+  }
+  // Pede ao navegador para não apagar os dados guardados por falta de espaço.
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  // Funciona sem internet depois do primeiro acesso (só em https/localhost).
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker não registrado', e));
+  }
   // Chart.js carrega de forma assíncrona para não travar a página sem internet.
   const cj = $('#chartjs');
   if (typeof window.Chart !== 'function' && cj) {

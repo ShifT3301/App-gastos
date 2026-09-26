@@ -4,27 +4,35 @@ Aplicação web **local**, em um único arquivo (`index.html`), feita com HTML +
 
 ## Como usar
 
-1. Abra o `index.html` no navegador (duplo clique).
-2. Clique em **Abrir** para carregar seu arquivo (ex.: `gastos-2026.json`) — ou comece do zero e clique em **Salvar** para escolher onde guardar.
-3. Lance gastos e receitas, defina o orçamento do mês e salve (**Ctrl+S** também funciona).
+**Online (computador ou celular):** acesse <https://shift3301.github.io/App-gastos/> (publicado pelo GitHub Pages).
 
-Para testar com dados prontos, abra o `gastos-exemplo.json`.
+**No iPhone:** abra o endereço acima no Safari → *Compartilhar* → *Adicionar à Tela de Início*. O app abre como um aplicativo, funciona sem internet e os dados ficam salvos automaticamente no aparelho. Use **Exportar** de vez em quando para guardar um backup (“Salvar em Arquivos”).
 
-### Navegadores
+**No computador, sem internet:** abra o `index.html` direto (duplo clique).
+
+Para testar com dados prontos, importe o `gastos-exemplo.json`.
+
+### Onde os dados ficam
 
 | Navegador | Como salva |
 |---|---|
-| Chrome / Edge | Grava direto no arquivo aberto (File System Access API). |
-| Firefox / Safari | Modo importar/exportar: **Abrir** importa o JSON e **Salvar** baixa a versão atualizada — substitua o arquivo antigo por ela. |
+| Chrome / Edge (computador) | **Salvar** grava direto no arquivo `.json` escolhido (File System Access API). O app lembra o arquivo entre sessões. |
+| iPhone, Android, Firefox, Safari | Salvo **automaticamente no navegador** do aparelho. **Exportar** gera um backup `.json` (no celular, pelo menu Compartilhar) e **Importar** carrega um arquivo, substituindo os dados do aparelho. |
 
-Se, abrindo pelo `file://`, algo não funcionar, rode um servidor local na pasta do app:
+Não há sincronização entre aparelhos: para passar os dados de um para outro, exporte num e importe no outro.
+
+Se, abrindo pelo `file://` no computador, algo não funcionar, rode um servidor local na pasta do app:
 
 ```bash
 python3 -m http.server
 # e acesse http://localhost:8000
 ```
 
-Os gráficos usam Chart.js via CDN, então precisam de internet. Sem ela, o resto do app funciona normalmente.
+Os gráficos usam Chart.js via CDN: precisam de internet no primeiro acesso (depois ficam em cache no modo app). Sem eles, o resto do app funciona normalmente.
+
+## Publicação (GitHub Pages)
+
+O repositório não precisa de build: `index.html`, `manifest.webmanifest`, `sw.js` (funcionamento offline) e os ícones são servidos como estão. Em *Settings → Pages*, a fonte é “Deploy from a branch”, na branch padrão, pasta `/ (root)`. Ao alterar o app, aumente a versão `CACHE` em `sw.js` para os aparelhos buscarem os arquivos novos.
 
 ## Funcionalidades
 
@@ -36,7 +44,7 @@ Os gráficos usam Chart.js via CDN, então precisam de internet. Sem ela, o rest
 - Orçamento mensal com barra de uso e alerta a partir de 80% e ao ultrapassar.
 - Gráfico de gastos por categoria e comparação mês a mês (receitas, gastos, saldo do mês e saldo acumulado).
 - Filtros por texto, categoria e fútil/não fútil; navegação entre meses.
-- Modo escuro, layout responsivo, botão de backup e rascunho automático no navegador para não perder alterações não salvas.
+- Modo escuro, layout responsivo, instalável na tela de início (PWA) e com funcionamento offline.
 
 ## Formato do arquivo
 
