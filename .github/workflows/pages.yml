@@ -1,0 +1,36 @@
+# Publica o app no GitHub Pages a cada push na branch padrão.
+# Em Settings → Pages, a fonte ("Source") deve ser "GitHub Actions".
+name: Publicar no GitHub Pages
+
+on:
+  push:
+    branches: [claude/new-session-7gnc7v]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Separar os arquivos do site
+        run: |
+          mkdir _site
+          cp index.html manifest.webmanifest sw.js icon-180.png icon-512.png gastos-exemplo.json .nojekyll _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

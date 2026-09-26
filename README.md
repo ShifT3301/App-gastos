@@ -32,7 +32,7 @@ Os gráficos usam Chart.js via CDN: precisam de internet no primeiro acesso (dep
 
 ## Publicação (GitHub Pages)
 
-O repositório não precisa de build: `index.html`, `manifest.webmanifest`, `sw.js` (funcionamento offline) e os ícones são servidos como estão. Em *Settings → Pages*, a fonte é “Deploy from a branch”, na branch padrão, pasta `/ (root)`. Ao alterar o app, aumente a versão `CACHE` em `sw.js` para os aparelhos buscarem os arquivos novos.
+O repositório não precisa de build: `index.html`, `manifest.webmanifest`, `sw.js` (funcionamento offline) e os ícones são servidos como estão. Em *Settings → Pages*, a fonte (“Source”) é **GitHub Actions**: o workflow `.github/workflows/pages.yml` publica o site a cada push na branch padrão. Ao alterar o app, aumente a versão `CACHE` em `sw.js` para os aparelhos buscarem os arquivos novos.
 
 ## Funcionalidades
 
