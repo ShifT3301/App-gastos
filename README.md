@@ -32,14 +32,15 @@ Os gráficos usam Chart.js via CDN, então precisam de internet. Sem ela, o rest
 - **Detecção de gasto fútil** por palavras-chave (sem diferenciar maiúsculas/acentos). O app sugere, você confirma ou recusa — e pode marcar manualmente. As palavras-chave são editáveis em ⚙️ Configurações.
 - **Recorrentes** (ex.: aluguel, salário): lançados automaticamente quando um mês novo é iniciado. Alterá-los não muda meses já lançados, a menos que você use “Lançar e atualizar valores” nas Configurações.
 - **Dashboard do mês**: total recebido, total gasto, saldo (verde/vermelho), categoria que mais consumiu o orçamento e total de gastos fúteis (R$ e %).
+- **Visão contínua**: card de *saldo acumulado* (saldo inicial + receita total − gasto total até o mês exibido) e tabela *Resumo contínuo* com todos os meses em sequência e o acumulado linha a linha. O saldo inicial é definido em ⚙️ Configurações.
 - Orçamento mensal com barra de uso e alerta a partir de 80% e ao ultrapassar.
-- Gráfico de gastos por categoria e comparação mês a mês (receitas, gastos e saldo).
+- Gráfico de gastos por categoria e comparação mês a mês (receitas, gastos, saldo do mês e saldo acumulado).
 - Filtros por texto, categoria e fútil/não fútil; navegação entre meses.
 - Modo escuro, layout responsivo, botão de backup e rascunho automático no navegador para não perder alterações não salvas.
 
 ## Formato do arquivo
 
-Segue o modelo da spec (`versao`, `categorias`, `categoriasFuteis`, `recorrentes`, `meses`). Lançamentos gerados a partir de um recorrente têm também `recorrenteId`, para o app saber que já foram lançados naquele mês. Campos desconhecidos são preservados.
+Segue o modelo da spec (`versao`, `categorias`, `categoriasFuteis`, `recorrentes`, `meses`), mais `saldoInicial` (número, padrão 0). Lançamentos gerados a partir de um recorrente têm também `recorrenteId`, para o app saber que já foram lançados naquele mês. Campos desconhecidos são preservados.
 
 ## Limitações
 

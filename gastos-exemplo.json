@@ -1,43 +1,164 @@
 {
   "versao": 1,
-  "categorias": ["Alimentação", "Transporte", "Moradia", "Lazer", "Saúde", "Estudos", "Outros"],
+  "categorias": [
+    "Alimentação",
+    "Transporte",
+    "Moradia",
+    "Lazer",
+    "Saúde",
+    "Estudos",
+    "Outros"
+  ],
   "categoriasFuteis": {
-    "Jogos/Apostas": ["bet", "aposta", "cassino", "loteria", "raspadinha", "steam", "jogo"],
-    "Delivery/Besteira": ["ifood", "delivery", "lanche", "fast food", "doceria"],
-    "Vícios": ["cigarro", "narguile", "bebida", "cerveja", "bar"],
-    "Compras por impulso": ["shopee", "shein", "aliexpress", "impulso"]
+    "Jogos/Apostas": [
+      "bet",
+      "aposta",
+      "cassino",
+      "loteria",
+      "raspadinha",
+      "steam",
+      "jogo"
+    ],
+    "Delivery/Besteira": [
+      "ifood",
+      "delivery",
+      "lanche",
+      "fast food",
+      "doceria"
+    ],
+    "Vícios": [
+      "cigarro",
+      "narguile",
+      "bebida",
+      "cerveja",
+      "bar"
+    ],
+    "Compras por impulso": [
+      "shopee",
+      "shein",
+      "aliexpress",
+      "impulso"
+    ]
   },
   "recorrentes": {
     "gastos": [
-      { "id": "rec-aluguel", "descricao": "Aluguel", "categoria": "Moradia", "valor": 1200, "diaDoMes": 5 }
+      {
+        "id": "rec-aluguel",
+        "descricao": "Aluguel",
+        "categoria": "Moradia",
+        "valor": 1200,
+        "diaDoMes": 5
+      }
     ],
     "receitas": [
-      { "id": "rec-salario", "descricao": "Salário", "valor": 4200, "diaDoMes": 5 }
+      {
+        "id": "rec-salario",
+        "descricao": "Salário",
+        "valor": 4200,
+        "diaDoMes": 5
+      }
     ]
   },
+  "saldoInicial": 500,
   "meses": {
     "2026-08": {
       "orcamento": 3000,
       "receitas": [
-        { "id": "r-0801", "data": "2026-08-05", "descricao": "Salário", "valor": 4200, "origemRecorrente": true, "recorrenteId": "rec-salario" }
+        {
+          "id": "r-0801",
+          "data": "2026-08-05",
+          "descricao": "Salário",
+          "valor": 4200,
+          "origemRecorrente": true,
+          "recorrenteId": "rec-salario"
+        }
       ],
       "gastos": [
-        { "id": "g-0801", "data": "2026-08-05", "categoria": "Moradia", "descricao": "Aluguel", "valor": 1200, "futil": false, "origemRecorrente": true, "recorrenteId": "rec-aluguel" },
-        { "id": "g-0802", "data": "2026-08-08", "categoria": "Alimentação", "descricao": "Mercado", "valor": 380.5, "futil": false },
-        { "id": "g-0803", "data": "2026-08-15", "categoria": "Estudos", "descricao": "Livro de fisiologia", "valor": 210, "futil": false },
-        { "id": "g-0804", "data": "2026-08-20", "categoria": "Alimentação", "descricao": "iFood sábado", "valor": 62.9, "futil": true, "tipoFutilidade": "Delivery/Besteira" }
+        {
+          "id": "g-0801",
+          "data": "2026-08-05",
+          "categoria": "Moradia",
+          "descricao": "Aluguel",
+          "valor": 1200,
+          "futil": false,
+          "origemRecorrente": true,
+          "recorrenteId": "rec-aluguel"
+        },
+        {
+          "id": "g-0802",
+          "data": "2026-08-08",
+          "categoria": "Alimentação",
+          "descricao": "Mercado",
+          "valor": 380.5,
+          "futil": false
+        },
+        {
+          "id": "g-0803",
+          "data": "2026-08-15",
+          "categoria": "Estudos",
+          "descricao": "Livro de fisiologia",
+          "valor": 210,
+          "futil": false
+        },
+        {
+          "id": "g-0804",
+          "data": "2026-08-20",
+          "categoria": "Alimentação",
+          "descricao": "iFood sábado",
+          "valor": 62.9,
+          "futil": true,
+          "tipoFutilidade": "Delivery/Besteira"
+        }
       ]
     },
     "2026-09": {
       "orcamento": 3000,
       "receitas": [
-        { "id": "r-0901", "data": "2026-09-05", "descricao": "Salário", "valor": 4200, "origemRecorrente": true, "recorrenteId": "rec-salario" }
+        {
+          "id": "r-0901",
+          "data": "2026-09-05",
+          "descricao": "Salário",
+          "valor": 4200,
+          "origemRecorrente": true,
+          "recorrenteId": "rec-salario"
+        }
       ],
       "gastos": [
-        { "id": "g-0901", "data": "2026-09-05", "categoria": "Moradia", "descricao": "Aluguel", "valor": 1200, "futil": false, "origemRecorrente": true, "recorrenteId": "rec-aluguel" },
-        { "id": "g-0902", "data": "2026-09-03", "categoria": "Alimentação", "descricao": "Mercado", "valor": 145.3, "futil": false },
-        { "id": "g-0903", "data": "2026-09-10", "categoria": "Lazer", "descricao": "Aposta jogo do Flamengo", "valor": 50, "futil": true, "tipoFutilidade": "Jogos/Apostas" },
-        { "id": "g-0904", "data": "2026-09-12", "categoria": "Transporte", "descricao": "Uber para o hospital", "valor": 34.7, "futil": false }
+        {
+          "id": "g-0901",
+          "data": "2026-09-05",
+          "categoria": "Moradia",
+          "descricao": "Aluguel",
+          "valor": 1200,
+          "futil": false,
+          "origemRecorrente": true,
+          "recorrenteId": "rec-aluguel"
+        },
+        {
+          "id": "g-0902",
+          "data": "2026-09-03",
+          "categoria": "Alimentação",
+          "descricao": "Mercado",
+          "valor": 145.3,
+          "futil": false
+        },
+        {
+          "id": "g-0903",
+          "data": "2026-09-10",
+          "categoria": "Lazer",
+          "descricao": "Aposta jogo do Flamengo",
+          "valor": 50,
+          "futil": true,
+          "tipoFutilidade": "Jogos/Apostas"
+        },
+        {
+          "id": "g-0904",
+          "data": "2026-09-12",
+          "categoria": "Transporte",
+          "descricao": "Uber para o hospital",
+          "valor": 34.7,
+          "futil": false
+        }
       ]
     }
   }

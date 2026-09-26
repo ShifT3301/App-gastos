@@ -30,6 +30,7 @@
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
+  --series-4: #eda100;
   --grid: #e8e7e3;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
   --radius: 12px;
@@ -57,6 +58,7 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
+    --series-4: #c98500;
     --grid: #2c2c29;
     --shadow: none;
   }
@@ -83,6 +85,7 @@
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
+  --series-4: #c98500;
   --grid: #2c2c29;
   --shadow: none;
 }
@@ -156,6 +159,8 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-
 }
 .card h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+@media (min-width: 900px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.kpi.acum { border-left: 4px solid var(--accent); }
 .kpi .label { color: var(--text-2); font-size: 13px; display: flex; gap: 6px; align-items: center; }
 .kpi .value { font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .kpi .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
@@ -239,6 +244,35 @@ input[type="text"], input[type="date"], input[type="number"], input[type="search
   .month-nav h1 { font-size: 19px; }
   .actions .btn .lbl { display: none; }
   .file-status .name { max-width: 140px; }
+  .hide-sm { display: none; }
+  .tab { padding-left: 8px; padding-right: 8px; }
+}
+
+/* ---------- Resumo contínuo ---------- */
+.ledger { margin-top: 12px; padding: 0; overflow: hidden; }
+.ledger h2 { padding: 16px 16px 0; }
+.ledger .hint { color: var(--muted); font-size: 13px; margin: -6px 16px 12px; }
+.table-wrap { overflow-x: auto; }
+table.cont { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+table.cont th, table.cont td { padding: 9px 16px; text-align: right; white-space: nowrap; border-top: 1px solid var(--border); }
+table.cont th:first-child, table.cont td:first-child { text-align: left; }
+table.cont thead th { color: var(--text-2); font-weight: 600; font-size: 13px; background: var(--surface-2); }
+table.cont tbody tr { cursor: pointer; }
+table.cont tbody tr:hover { background: var(--surface-2); }
+table.cont tbody tr.atual { background: var(--surface-2); font-weight: 600; }
+table.cont tbody tr.inicial { cursor: default; color: var(--text-2); }
+table.cont tfoot td { font-weight: 700; background: var(--surface-2); }
+.pos-t { color: var(--pos); }
+.neg-t { color: var(--neg); }
+
+@media (max-width: 560px) {
+  table.cont th:nth-child(2), table.cont td:nth-child(2),
+  table.cont th:nth-child(3), table.cont td:nth-child(3) { display: none; }
+  table.cont { font-size: 13px; }
+  table.cont thead th { white-space: normal; }
+  table.cont th, table.cont td { padding-left: 6px; padding-right: 6px; }
+  table.cont th:first-child, table.cont td:first-child { white-space: normal; padding-left: 12px; }
+  table.cont th:last-child, table.cont td:last-child { padding-right: 12px; }
 }
 
 /* ---------- Footer ---------- */
@@ -359,6 +393,11 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
       <div class="value" id="kpi-saldo">R$ 0,00</div>
       <div class="sub" id="kpi-saldo-sub"></div>
     </div>
+    <div class="card kpi acum" id="kpi-acum-card">
+      <div class="label">🏦 Saldo acumulado</div>
+      <div class="value" id="kpi-acum">R$ 0,00</div>
+      <div class="sub" id="kpi-acum-sub"></div>
+    </div>
     <div class="card kpi">
       <div class="label">🏆 Maior categoria</div>
       <div class="value text" id="kpi-top">—</div>
@@ -414,6 +453,12 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
       <span class="total" id="f-total"></span>
     </div>
     <ul class="list" id="list"></ul>
+  </section>
+
+  <section class="card ledger" aria-label="Resumo contínuo">
+    <h2>📒 Resumo contínuo</h2>
+    <p class="hint">Todos os meses em sequência: o que sobra (ou falta) em um mês passa para o próximo. Clique num mês para abri-lo.</p>
+    <div class="table-wrap"><table class="cont" id="ledger"></table></div>
   </section>
 
   <footer class="about">
@@ -562,6 +607,7 @@ function emptyData() {
       'Compras por impulso': ['shopee', 'shein', 'aliexpress', 'impulso'],
     },
     recorrentes: { gastos: [], receitas: [] },
+    saldoInicial: 0,
     meses: {},
   };
 }
@@ -597,6 +643,7 @@ function normalize(raw) {
     })),
   };
 
+  out.saldoInicial = num(raw.saldoInicial);
   out.meses = {};
   for (const [key, m] of Object.entries(raw.meses || {})) {
     if (!/^\d{4}-\d{2}$/.test(key) || !m || typeof m !== 'object') continue;
@@ -802,6 +849,19 @@ async function newFile() {
 }
 
 /* ================= Cálculos ================= */
+/** Receita, gasto e saldo somados de todos os meses até `key` (inclusive), partindo do saldo inicial. */
+function cumulativeStats(key) {
+  let recebido = 0, gasto = 0;
+  for (const k of Object.keys(state.data.meses)) {
+    if (k > key) continue;
+    const m = state.data.meses[k];
+    recebido += sum(m.receitas); gasto += sum(m.gastos);
+  }
+  recebido = round2(recebido); gasto = round2(gasto);
+  const inicial = state.data.saldoInicial || 0;
+  return { inicial, recebido, gasto, saldo: round2(inicial + recebido - gasto) };
+}
+
 function monthStats(key) {
   const m = state.data.meses[key] || { orcamento: 0, receitas: [], gastos: [] };
   const recebido = sum(m.receitas);
@@ -820,6 +880,7 @@ function render() {
   renderMonth();
   renderCharts();
   renderList();
+  renderLedger();
 }
 
 function renderHeader() {
@@ -867,6 +928,14 @@ function renderMonth() {
   sc.classList.toggle('neg', s.saldo < 0);
   $('#kpi-saldo').textContent = (s.saldo > 0 ? '+' : '') + fmt(s.saldo);
   $('#kpi-saldo-sub').textContent = s.saldo > 0 ? '▲ Sobrou dinheiro' : s.saldo < 0 ? '▼ Gastou mais do que recebeu' : 'Empatado';
+
+  const c = cumulativeStats(key);
+  const ac = $('#kpi-acum');
+  ac.textContent = fmt(c.saldo);
+  ac.style.color = c.saldo < 0 ? 'var(--neg)' : '';
+  $('#kpi-acum-sub').textContent = `Receita total ${fmt(c.recebido)} · Gasto total ${fmt(c.gasto)}` +
+    (c.inicial ? ` · Inicial ${fmt(c.inicial)}` : '');
+  $('#kpi-acum-card').title = `Saldo inicial + tudo o que entrou − tudo o que saiu até ${monthLabel(key)}`;
 
   if (s.cats.length) {
     const [nome, val] = s.cats[0];
@@ -976,7 +1045,7 @@ function renderCharts() {
     showEmpty('hist', null);
     const first = keys.indexOf(used[0]);
     const ks = keys.slice(first);
-    const st = ks.map(k => (state.data.meses[k] ? monthStats(k) : null));
+    const st = ks.map(k => (state.data.meses[k] ? { ...monthStats(k), acumulado: cumulativeStats(k).saldo } : null));
     const ds = (label, color, f) => ({
       label, data: st.map(x => (x ? f(x) : null)), borderColor: color, backgroundColor: color,
       borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, pointBorderColor: surface, pointBorderWidth: 2, tension: 0.25, spanGaps: true,
@@ -988,7 +1057,8 @@ function renderCharts() {
         datasets: [
           ds('Receitas', cssVar('--series-1'), x => x.recebido),
           ds('Gastos', cssVar('--series-2'), x => x.gasto),
-          ds('Saldo', cssVar('--series-3'), x => x.saldo),
+          ds('Saldo do mês', cssVar('--series-3'), x => x.saldo),
+          ds('Saldo acumulado', cssVar('--series-4'), x => x.acumulado),
         ],
       },
       options: {
@@ -1000,7 +1070,7 @@ function renderCharts() {
         },
         scales: {
           x: { grid: { display: false }, border: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 8 } },
-          y: { grid: { color: grid }, border: { display: false }, ticks: { callback: v => brl.format(v).replace(/,00$/, '') } },
+          y: { beginAtZero: true, grid: { color: grid }, border: { display: false }, ticks: { callback: v => brl.format(v).replace(/,00$/, '') } },
         },
       },
     };
@@ -1018,6 +1088,26 @@ function upsertChart(id, cfg) {
   }
 }
 
+function renderLedger() {
+  const keys = Object.keys(state.data.meses).sort();
+  const t = $('#ledger');
+  const inicial = state.data.saldoInicial || 0;
+  if (!keys.length) { t.innerHTML = '<tbody><tr class="inicial"><td colspan="5">Nenhum mês lançado ainda.</td></tr></tbody>'; return; }
+  const cls = v => (v < 0 ? 'neg-t' : v > 0 ? 'pos-t' : '');
+  const sinal = v => (v > 0 ? '+' : '') + fmt(v);
+  let acum = inicial, totR = 0, totG = 0;
+  const rows = keys.map(k => {
+    const s = monthStats(k);
+    acum = round2(acum + s.saldo); totR += s.recebido; totG += s.gasto;
+    return `<tr data-key="${k}" class="${k === state.key ? 'atual' : ''}" tabindex="0">
+      <td>${escapeHtml(monthLabel(k))}</td><td>${fmt(s.recebido)}</td><td>${fmt(s.gasto)}</td>
+      <td class="${cls(s.saldo)}">${sinal(s.saldo)}</td><td class="${cls(acum)}">${fmt(acum)}</td></tr>`;
+  });
+  t.innerHTML = `<thead><tr><th>Mês</th><th>Receitas</th><th>Gastos</th><th>Saldo do mês</th><th>Acumulado</th></tr></thead>
+    <tbody>${inicial ? `<tr class="inicial"><td>Saldo inicial</td><td></td><td></td><td></td><td class="${cls(inicial)}">${fmt(inicial)}</td></tr>` : ''}${rows.join('')}</tbody>
+    <tfoot><tr><td>Total</td><td>${fmt(totR)}</td><td>${fmt(totG)}</td><td class="${cls(totR - totG)}">${sinal(round2(totR - totG))}</td><td class="${cls(acum)}">${fmt(acum)}</td></tr></tfoot>`;
+}
+
 function fmtDia(d) { const [, m, dd] = d.split('-'); return `${dd}/${m}`; }
 
 function renderList() {
@@ -1026,7 +1116,7 @@ function renderList() {
   $$('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === state.tab)));
   $('#count-gastos').textContent = m.gastos.length ? `(${m.gastos.length})` : '';
   $('#count-receitas').textContent = m.receitas.length ? `(${m.receitas.length})` : '';
-  $('#btn-add').textContent = isG ? '+ Adicionar gasto' : '+ Adicionar receita';
+  $('#btn-add').innerHTML = `+ <span class="hide-sm">Adicionar </span>${isG ? 'gasto' : 'receita'}`;
 
   // Filtros
   const fc = $('#f-categoria');
@@ -1189,6 +1279,12 @@ function renderSettings() {
     <h2 id="settings-title">⚙️ Configurações</h2>
 
     <section>
+      <h3>🏦 Saldo inicial</h3>
+      <p class="hint">Quanto você já tinha quando começou a usar o app (conta, poupança…). Entra no saldo acumulado. Pode ser negativo.</p>
+      <div class="inline-add" style="max-width:280px"><input type="text" inputmode="decimal" data-act="saldo-inicial" value="${d.saldoInicial ? String(d.saldoInicial).replace('.', ',') : ''}" placeholder="0,00" aria-label="Saldo inicial em reais"></div>
+    </section>
+
+    <section>
       <h3>Categorias de gasto</h3>
       <p class="hint">Remover uma categoria não altera os gastos que já a usam.</p>
       <div class="chips">${d.categorias.map((c, i) => `<span class="chip">${escapeHtml(c)}<button type="button" data-act="cat-del" data-i="${i}" aria-label="Remover ${escapeHtml(c)}">×</button></span>`).join('')}</div>
@@ -1323,6 +1419,15 @@ function onSettingsSubmit(ev) {
 function onSettingsChange(ev) {
   const el = ev.target;
   const d = state.data;
+  if (el.dataset.act === 'saldo-inicial') {
+    const raw = el.value.trim();
+    const neg = raw.startsWith('-');
+    const v = parseValor(raw.replace(/^-/, ''));
+    d.saldoInicial = isFinite(v) ? (neg ? -v : v) : 0;
+    el.value = d.saldoInicial ? String(d.saldoInicial).replace('.', ',') : '';
+    markDirty();
+    return;
+  }
   if (el.dataset.act === 'tipo-rename') {
     const box = el.closest('.futil-type');
     const old = box.dataset.tipo, nv = el.value.trim();
@@ -1418,6 +1523,15 @@ function bind() {
     if (li && e.target === li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEntry(state.tab, li.dataset.id); }
     if (li && e.target === li && e.key === 'Delete') deleteEntry(state.tab, li.dataset.id);
   });
+
+  const goLedger = e => {
+    const tr = e.target.closest('tr[data-key]');
+    if (!tr || (e.type === 'keydown' && e.key !== 'Enter')) return;
+    state.key = tr.dataset.key; render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  $('#ledger').addEventListener('click', goLedger);
+  $('#ledger').addEventListener('keydown', goLedger);
 
   // Diálogo de lançamento
   const form = $('#form-entry');
