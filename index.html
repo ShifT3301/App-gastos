@@ -6,7 +6,7 @@
 <title>Controle de Gastos</title>
 <meta name="description" content="Controle de gastos mensais que roda 100% no navegador, salvando em um arquivo JSON local.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💸</text></svg>">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script id="chartjs" async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
 :root {
   color-scheme: light;
@@ -677,6 +677,7 @@ const state = {
   filtros: { busca: '', categoria: '', futil: '' },
   charts: {},
   draftBanner: false,
+  chartFailed: false,
 };
 
 function markDirty() {
@@ -926,7 +927,9 @@ function renderCharts() {
   };
 
   if (!hasChart) {
-    const msg = 'Gráficos indisponíveis: não foi possível carregar o Chart.js (é preciso internet na primeira vez).';
+    const msg = state.chartFailed
+      ? 'Gráficos indisponíveis: não foi possível carregar o Chart.js (é preciso internet). O resto do app funciona normalmente.'
+      : 'Carregando gráficos…';
     showEmpty('cat', msg); showEmpty('hist', msg);
     return;
   }
@@ -1492,6 +1495,14 @@ function restoreDraft() {
   state.draftBanner = !!lsGet(LS_DRAFT);
   bind();
   render();
+  // Chart.js carrega de forma assíncrona para não travar a página sem internet.
+  const cj = $('#chartjs');
+  if (typeof window.Chart !== 'function' && cj) {
+    cj.addEventListener('load', renderCharts);
+    cj.addEventListener('error', () => { state.chartFailed = true; renderCharts(); });
+    // Se o script falhou antes deste ponto, o evento de erro já passou.
+    setTimeout(() => { if (typeof window.Chart !== 'function') { state.chartFailed = true; renderCharts(); } }, 10000);
+  }
 })();
 </script>
 </body>
