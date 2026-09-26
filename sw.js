@@ -1,8 +1,8 @@
 // Service worker: permite abrir o app sem internet depois do primeiro acesso.
 // Ao mudar os arquivos do app, aumente a versão para forçar a atualização do cache.
-const CACHE = 'app-gastos-v1';
+const CACHE = 'app-gastos-v2';
 const CHART_JS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png', CHART_JS];
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png', './icon.svg', CHART_JS];
 
 self.addEventListener('install', event => {
   event.waitUntil(
